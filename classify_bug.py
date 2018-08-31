@@ -9,92 +9,80 @@ import string
 import unicodedata
 import sys
 
-# a table structure to hold the different punctuation used
-tbl = dict.fromkeys(i for i in range(sys.maxunicode)
-                    if unicodedata.category(chr(i)).startswith('P'))
 
 
-# method to remove punctuations from sentences.
+stemmer = LancasterStemmer()
+
+# Function to clean data. Lowercase, Tokenize, remove pure numbers
+
+def clean_data(text):
+	text = text.lower()
+	tokens = nltk.word_tokenize(text)
+
+	newTokens = []
+	for unit in tokens:
+		if not unit.isdigit():
+			newTokens.append(stemmer.stem(unit))
+
+	return newTokens
+
+# a table structure to hold the allowed characters
+tbl = dict.fromkeys((i for i in range(256)
+	if (not ((i>=48 and i<=57) or (i>=65 and i<=90) or (i>=97 and i<=122)))), ' ')
+
+
 def remove_punctuation(text):
     return text.translate(tbl)
 
+
 # initialize the stemmer
 stemmer = LancasterStemmer()
-# variable to hold the Json data read from the file
-#data = None
 
-# read the json file and load the training data
-#with open('bugs7.json') as json_data:
-data = json.load(open('bugs1.json', 'r'))
-    #print(data)
+data = json.load(open('bugs_samples.json', 'r'))
 
-# get a list of all categories to train for
-#categories = set()
-categories = []
-#for each in data:
-    #if each['component'] not in categories:
-    #    categories.add(each['component'])
-words = []
-# a list of tuples with words in the sentence and category name
+# A set of all componenents
+categories = set()
+
+# A set of all words in training data i.e Global words
+words = set()
+
+# Per cdets list with bag of words and component as unit.
 docs = []
 
 for each in data:
-    if each['component'] not in categories:
-        categories.append(each['component'])
-    #for each_sentence in each['notes']:
-    #print(each['notes'])
+    categories.add(each['component'])
     each_sentence = remove_punctuation(each['notes'])
-    w = nltk.word_tokenize(each_sentence)
-    words.extend(w)
+    w = clean_data(each_sentence)
+    words = words.union(set(w))
     docs.append((w, each['component']))
-print(categories)
 
-"""
-for each_category in data.keys():
-    for each_sentence in data[each_category]:
-        # remove any punctuation from the sentence
-        each_sentence = remove_punctuation(each_sentence)
-        print(each_sentence)
-        # extract words from each sentence and append to the word list
-        w = nltk.word_tokenize(each_sentence)
-        print("tokenized words: ", w)
-        words.extend(w)
-        docs.append((w, each_category))
-"""
-
-# stem and lower each word and remove duplicates
-words = [stemmer.stem(w.lower()) for w in words]
-words = sorted(list(set(words)))
-
-#print(words)
-#print(docs)
+all_components= sorted(list(categories))
 
 # create our training data
 training = []
 output = []
-# create an empty array for our output
 output_empty = [0] * len(categories)
 
-print (docs[0])
-print (docs[1])
-
 for doc in docs:
-    # initialize our bag of words(bow) for each document in the list
-    bow = []
+    bitmap_of_words = []  # 
     # list of tokenized words for the pattern
     token_words = doc[0]
-    # stem each word
-    token_words = [stemmer.stem(word.lower()) for word in token_words]
+
     # create our bag of words array
     for w in words:
-        bow.append(1) if w in token_words else bow.append(0)
-
-    output_row = list(output_empty)
-    output_row[categories.index(doc[1])] = 1
+        bitmap_of_words.append(1) if w in token_words else bitmap_of_words.append(0)
+    # 
+    bitmap_of_component = list(output_empty)
+    bitmap_of_component[all_components.index(doc[1])] = 1
 
     # our training set will contain a the bag of words model and the output row that tells
-    # which catefory that bow belongs to.
-    training.append([bow, output_row])
+    # which category that bow belongs to.
+    
+    training.append([bitmap_of_words, bitmap_of_component])
+
+#training data generated
+
+
 
 # shuffle our features and turn into np.array as tensorflow  takes in numpy array
 random.shuffle(training)
@@ -148,7 +136,7 @@ def get_tf_record(sentence):
 
 
 # we can start to predict the results for each of the 4 sentences
-print(categories[np.argmax(model.predict([get_tf_record(sent_1)]))])
-print(categories[np.argmax(model.predict([get_tf_record(sent_2)]))])
-print(categories[np.argmax(model.predict([get_tf_record(sent_3)]))])
-print(categories[np.argmax(model.predict([get_tf_record(sent_4)]))])
+print(all_components[np.argmax(model.predict([get_tf_record(sent_1)]))])
+print(all_components[np.argmax(model.predict([get_tf_record(sent_2)]))])
+print(all_components[np.argmax(model.predict([get_tf_record(sent_3)]))])
+print(all_components[np.argmax(model.predict([get_tf_record(sent_4)]))])
